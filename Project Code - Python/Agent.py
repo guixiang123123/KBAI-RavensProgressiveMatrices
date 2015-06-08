@@ -50,11 +50,29 @@ class Agent:
 	# problem.hasVerbal - boolean on if text included
 	# problem.figures - dictionary for figures & solutions
 
+        # Clean up Attributes
+        def CleanAttributes(Attributes):
+            shapes={'circle':1,'triangle':3,'right-triangle':3,
+                    'square':4,'rectangle':4,'diamond':4,'pentagon':5,
+                    'hexagon':6,'octogon':8,'pac-man':2.5,'heart':1.5}
+            size={'very small':0,'small':1,'medium':2,'large':3,
+                  'very large':4,'huge':5}
+            for Att in Attributes:
+                if Att == 'shape':
+                    if Attributes['shape'] in shapes:
+                        Attributes['shape']=shapes[Attributes['shape']]
+                if Att == 'size':
+                    if Attributes['size'] in size:
+                        Attributes['size']=size[Attributes['size']]
+                if Att == 'inside':
+                    Attributes['inside']=(len(str(Attributes['inside']))+1)/2
+            return Attributes
+
         # Get all the objects in a figure (if verbal)
         def GetVerbalObjs(Figure):
             Objs = []
             for obj in list(Figure.objects):
-                Objs.append([Figure.objects[obj].name, Figure.objects[obj].attributes])
+                Objs.append([Figure.objects[obj].name, CleanAttributes(Figure.objects[obj].attributes)])
             return Objs
 
         # Calculate the difference between two objects in regards to attributes
@@ -65,7 +83,10 @@ class Agent:
             Attr2 = list(Obj2)
             for Attr in Attr1:
                 if Attr in Obj2:
-                    if Obj1[Attr] != Obj2[Attr]:
+                    if (Obj1[Attr] != Obj2[Attr]) and (Attr == 'size'):
+                        Value += 1.1
+                        Delta[Attr]=[Obj1[Attr],Obj2[Attr]]
+                    elif Obj1[Attr] != Obj2[Attr]:
                         Value += 1
                         Delta[Attr]=[Obj1[Attr],Obj2[Attr]]
                 else:
@@ -81,7 +102,112 @@ class Agent:
         def FigureObjMatch(Fig1, Fig2):
             Objs1 = GetVerbalObjs(Fig1)
             Objs2 = GetVerbalObjs(Fig2)
-            return None
+            Score = []
+            Delta = []
+            for Obj1 in Objs1:
+                SRow = []
+                DRow = []
+                for Obj2 in Objs2:
+                    [V,D] = CalcObjDelta(Obj1[1], Obj2[1])
+                    SRow.append(V)
+                    DRow.append(D)
+                Score.append(SRow)
+                Delta.append(DRow)
+            Match1 = []
+            Match2 = []
+            for i in range(len(Score)):
+                LowestVal = None
+                for j in range(len(Score)):
+                    for k in range(len(Score[j])):
+                        if ((LowestVal == None) and (j not in Match1) and (k not in Match2)):
+                            LowestVal = [Score[j][k], j, k]
+                        if ((j not in Match1) and (k not in Match2)):
+                            if (Score[j][k] < LowestVal[0]):
+                                LowestVal = [Score[j][k], j, k]
+                if (LowestVal != None):
+                    Match1.append(LowestVal[1])
+                    Match2.append(LowestVal[2])
+            NetMatches = []
+            for i in range(len(Match1)):
+                NetMatches.append([Objs1[Match1[i]], Objs2[Match2[i]], Delta[Match1[i]][Match2[i]]])
+            for i in range(len(Objs1)):
+                if i not in Match1:
+                    NetMatches.append([Objs1[i],[None],'Deleted'])
+            for i in range(len(Objs2)):
+                if i not in Match2:
+                    NetMatches.append([[None],Objs2[i],'Added'])
+            return NetMatches
+            
+        # Match up objects between two different figures
+        def SolObjMatch(Fig, Objs2):
+            Objs1 = GetVerbalObjs(Fig)
+            Score = []
+            Delta = []
+            for Obj1 in Objs1:
+                SRow = []
+                DRow = []
+                for Obj2 in Objs2:
+                    [V,D] = CalcObjDelta(Obj1[1], Obj2[1])
+                    SRow.append(V)
+                    DRow.append(D)
+                Score.append(SRow)
+                Delta.append(DRow)
+            Match1 = []
+            Match2 = []
+            for i in range(len(Score)):
+                LowestVal = None
+                for j in range(len(Score)):
+                    for k in range(len(Score[j])):
+                        if ((LowestVal == None) and (j not in Match1) and (k not in Match2)):
+                            LowestVal = [Score[j][k], j, k]
+                        if ((j not in Match1) and (k not in Match2)):
+                            if (Score[j][k] < LowestVal[0]):
+                                LowestVal = [Score[j][k], j, k]
+                if (LowestVal != None):
+                    Match1.append(LowestVal[1])
+                    Match2.append(LowestVal[2])
+            NetMatches = []
+            for i in range(len(Match1)):
+                NetMatches.append([Objs1[Match1[i]], Objs2[Match2[i]], Delta[Match1[i]][Match2[i]]])
+            for i in range(len(Objs1)):
+                if i not in Match1:
+                    NetMatches.append([Objs1[i],[None],'Deleted'])
+            for i in range(len(Objs2)):
+                if i not in Match2:
+                    NetMatches.append([[None],Objs2[i],'Added'])
+            Score = 0
+            for Match in NetMatches:
+                if Match[2] == 'Deleted':
+                    Score += 2
+                elif Match[2] == 'Added':
+                    Score += 2
+                elif len(Match[2]) > 0:
+                    Score += len(Match[2])
+            return Score
+            
+        def ApplyDeltas(Figure, Del1, Del2):
+            Objs = GetVerbalObjs(Figure)
+            for Delta in Del1:
+                for Obj in Objs:
+                    if Delta[0][0] == Obj[0]:
+                        if Delta[2] == 'Deleted':
+                            Objs.remove(Obj)
+                        else:
+                            Obj[1] = Delta[1][1]
+                if Delta[2] == 'Added':
+                    Objs.append(Delta[1])
+            for Delta in Del2:
+                for Obj in Objs:
+                    if Delta[0][0] == Obj[0]:
+                        if Delta[2] == 'Deleted':
+                            Objs.remove(Obj)
+                        else:
+                            Obj[1] = Delta[1][1]
+                if Delta[2] == 'Added':
+                    Objs.append(Delta[1])
+            return Objs
+        
+        BestGuess = 1 
 
         if problem.problemType == "2x2":
             TopLeft = problem.figures['A']
@@ -91,18 +217,21 @@ class Agent:
 	    	             problem.figures['3'], problem.figures['4'],
 	                     problem.figures['5'], problem.figures['6']]
             if problem.hasVerbal:
-                TLO = GetVerbalObjs(TopLeft)
-                TRO = GetVerbalObjs(TopRight)
-                BLO = GetVerbalObjs(BotLeft)
-                SLO = []
+                ObjMatchTLTR = FigureObjMatch(TopLeft,TopRight)
+                ObjMatchTLBL = FigureObjMatch(TopLeft,BotLeft)
+                TRBR = ApplyDeltas(problem.figures['A'], ObjMatchTLTR, ObjMatchTLBL)
+                BLBR = ApplyDeltas(problem.figures['A'], ObjMatchTLBL, ObjMatchTLTR)
+                TRSolScore = []
+                BLSolScore = []
                 for Sol in Solutions:
-                    SLO.append(GetVerbalObjs(Sol))
-                print problem.name
-                print TLO
-                print TRO
-                [V,D] = CalcObjDelta(TLO[0][1],TRO[0][1])
-                print V
-                print D
+                    TRSolScore.append(SolObjMatch(Sol,TRBR))
+                    BLSolScore.append(SolObjMatch(Sol,BLBR))
+                MinSolScore = TRSolScore[0]+BLSolScore[0]
+                BestGuess = 1
+                for i in range(len(TRSolScore)):
+                    if (TRSolScore[i] + BLSolScore[i]) < MinSolScore:
+                        MinSolScore = (TRSolScore[i] + BLSolScore[i])
+                        BestGuess = i+1
 
 
         if problem.problemType == "3x3":
@@ -119,7 +248,6 @@ class Agent:
 			     problem.figures['5'], problem.figures['6'],
 			     problem.figures['7'], problem.figures['8']]
 
-        BestGuess = 1
         ActualSolution = problem.checkAnswer(int(BestGuess))
         return BestGuess
 
